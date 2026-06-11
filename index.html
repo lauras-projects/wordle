@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raad het Woord</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* Design tokens. The look is "speelgoedblokken" (toy letter blocks):
+     chunky rounded tiles with soft shadows so they feel tactile for kids. */
+  :root {
+    --bg: #e7f3f1;
+    --bg-tint: #d7ebe8;
+    --surface: #ffffff;
+    --ink: #23384a;
+    --ink-soft: #5d7488;
+
+    /* Feedback colours, chosen to stay friendly rather than alarming. */
+    --goed: #5cb377;        /* letter op de juiste plek */
+    --bijna: #f3ad3d;       /* letter komt voor, verkeerde plek */
+    --niet: #aab6c0;        /* letter zit niet in het woord */
+
+    --accent: #6c63ff;      /* primaire knoppen */
+    --accent-dark: #574fd6;
+    --warm: #ff6b6b;        /* speelse tweede accent */
+
+    --tile: clamp(48px, 16vw, 76px);
+    --radius: 16px;
+    --shadow-soft: 0 4px 0 rgba(35, 56, 74, 0.12);
+    --shadow-pop: 0 6px 18px rgba(35, 56, 74, 0.18);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at 15% 0%, var(--bg-tint), transparent 55%),
+      radial-gradient(circle at 85% 100%, #f6e8d8, transparent 55%),
+      var(--bg);
+    font-family: 'Nunito', system-ui, sans-serif;
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px;
+  }
+
+  /* ---------- Koptekst ---------- */
+  header {
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 8px 0 4px;
+  }
+  h1 {
+    font-family: 'Baloo 2', cursive;
+    font-weight: 800;
+    font-size: clamp(1.6rem, 6vw, 2.3rem);
+    margin: 0;
+    letter-spacing: 0.5px;
+  }
+  h1 .accent { color: var(--accent); }
+
+  .icon-button {
+    border: none;
+    background: var(--surface);
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    font-size: 1.4rem;
+    cursor: pointer;
+    box-shadow: var(--shadow-soft);
+    transition: transform 0.12s ease;
+  }
+  .icon-button:hover { transform: translateY(-2px); }
+  .icon-button:active { transform: translateY(1px); }
+
+  /* ---------- Berichtbalk ---------- */
+  .message {
+    min-height: 34px;
+    margin: 10px 0 6px;
+    font-weight: 800;
+    font-size: 1.1rem;
+    text-align: center;
+    transition: opacity 0.2s ease;
+  }
+  .message.win { color: var(--goed); }
+  .message.lose { color: var(--warm); }
+  .message.hint { color: var(--ink-soft); font-weight: 700; }
+
+  /* ---------- Speelbord ---------- */
+  #board {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .board-row {
+    display: grid;
+    gap: 8px;
+    justify-content: center;
+  }
+  .tile {
+    width: var(--tile);
+    height: var(--tile);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface);
+    border: 3px solid var(--bg-tint);
+    border-radius: var(--radius);
+    font-family: 'Baloo 2', cursive;
+    font-weight: 700;
+    font-size: calc(var(--tile) * 0.5);
+    color: var(--ink);
+    box-shadow: var(--shadow-soft);
+  }
+  /* Een ingevulde maar nog niet gecontroleerde letter krijgt een lichte "pop". */
+  .tile.filled {
+    border-color: var(--accent);
+    animation: pop 0.12s ease;
+  }
+  @keyframes pop {
+    0% { transform: scale(0.9); }
+    100% { transform: scale(1); }
+  }
+
+  .tile.goed  { background: var(--goed);  border-color: var(--goed);  color: #fff; }
+  .tile.bijna { background: var(--bijna); border-color: var(--bijna); color: #fff; }
+  .tile.niet  { background: var(--niet);  border-color: var(--niet);  color: #fff; }
+
+  /* Omdraai-animatie zodat het voelt alsof de blokjes hun kleur "onthullen". */
+  .tile.reveal { animation: flip 0.45s ease forwards; }
+  @keyframes flip {
+    0%   { transform: rotateX(0); }
+    50%  { transform: rotateX(90deg); }
+    100% { transform: rotateX(0); }
+  }
+
+  /* ---------- Toetsenbord ---------- */
+  #keyboard {
+    width: 100%;
+    max-width: 520px;
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+  }
+  .key {
+    border: none;
+    min-width: 38px;
+    height: 52px;
+    padding: 0 10px;
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--ink);
+    font-family: 'Baloo 2', cursive;
+    font-size: 1.25rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: var(--shadow-soft);
+    transition: transform 0.1s ease;
+  }
+  .key:hover { transform: translateY(-2px); }
+  .key:active { transform: translateY(2px); box-shadow: none; }
+  .key.action {
+    background: var(--accent);
+    color: #fff;
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800;
+    min-width: 64px;
+  }
+  .key.action.erase { background: var(--warm); }
+
+  .key.goed  { background: var(--goed);  color: #fff; }
+  .key.bijna { background: var(--bijna); color: #fff; }
+  .key.niet  { background: var(--niet);  color: #fff; }
+
+  /* Uitgeschakelde letter in de makkelijke modus: doorgestreept en uitgegrijsd. */
+  .key.disabled {
+    background: var(--bg);
+    color: var(--ink-soft);
+    text-decoration: line-through;
+    opacity: 0.45;
+    box-shadow: none;
+    cursor: default;
+  }
+  .key.disabled:hover { transform: none; }
+
+  /* ---------- Opnieuw-knop ---------- */
+  .replay {
+    margin-top: 18px;
+    border: none;
+    padding: 14px 28px;
+    border-radius: 16px;
+    background: var(--accent);
+    color: #fff;
+    font-family: 'Baloo 2', cursive;
+    font-size: 1.2rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: var(--shadow-pop);
+    transition: transform 0.12s ease;
+  }
+  .replay:hover { transform: translateY(-2px); }
+  .replay:active { transform: translateY(1px); }
+
+  .note {
+    max-width: 460px;
+    margin: 14px 0 0;
+    text-align: center;
+    color: var(--ink-soft);
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  /* ---------- Instellingen ---------- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(35, 56, 74, 0.45);
+    display: none;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 20px;
+    overflow-y: auto;
+    z-index: 10;
+  }
+  .overlay.open { display: flex; }
+
+  .panel {
+    background: var(--surface);
+    border-radius: 24px;
+    padding: 24px;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: var(--shadow-pop);
+    margin: auto 0;
+  }
+  .panel h2 {
+    font-family: 'Baloo 2', cursive;
+    margin: 0 0 4px;
+    font-size: 1.5rem;
+  }
+  .panel .lead { margin: 0 0 8px; color: var(--ink-soft); font-weight: 600; }
+
+  .field-label {
+    font-weight: 800;
+    margin: 18px 0 8px;
+    display: block;
+  }
+
+  /* Segmented keuze (woordlengte en letterstijl). */
+  .segment {
+    display: inline-flex;
+    background: var(--bg);
+    border-radius: 14px;
+    padding: 4px;
+    gap: 4px;
+  }
+  .segment button {
+    border: none;
+    background: transparent;
+    padding: 10px 22px;
+    border-radius: 11px;
+    font-family: 'Baloo 2', cursive;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .segment button.selected {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  /* Aan/uit-schakelaar voor de makkelijke modus. */
+  .switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 18px;
+  }
+  .switch-row .switch-text { font-weight: 800; }
+  .switch-row .switch-help {
+    margin: 2px 0 0;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+  }
+  .switch {
+    position: relative;
+    flex: 0 0 auto;
+    width: 56px;
+    height: 32px;
+  }
+  .switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .slider {
+    position: absolute;
+    inset: 0;
+    background: var(--niet);
+    border-radius: 999px;
+    transition: background 0.15s ease;
+  }
+  .slider::before {
+    content: "";
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    left: 3px;
+    top: 3px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.15s ease;
+  }
+  .switch input:checked + .slider { background: var(--goed); }
+  .switch input:checked + .slider::before { transform: translateX(24px); }
+  .switch input:focus-visible + .slider { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  .letter-tools {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .text-button {
+    border: none;
+    background: var(--bg);
+    color: var(--ink);
+    font-weight: 700;
+    padding: 8px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  .text-button:hover { background: var(--bg-tint); }
+
+  .letter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+    gap: 6px;
+  }
+  .letter-toggle {
+    border: 2px solid var(--bg-tint);
+    background: var(--bg);
+    color: var(--ink-soft);
+    height: 44px;
+    border-radius: 11px;
+    font-family: 'Baloo 2', cursive;
+    font-size: 1.2rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.1s ease;
+  }
+  .letter-toggle:active { transform: scale(0.92); }
+  .letter-toggle.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  .word-count {
+    margin: 16px 0 4px;
+    font-weight: 700;
+    color: var(--ink-soft);
+  }
+  .word-count.empty { color: var(--warm); }
+
+  .panel-actions {
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .primary {
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-family: 'Baloo 2', cursive;
+    font-size: 1.15rem;
+    font-weight: 700;
+    padding: 12px 28px;
+    border-radius: 14px;
+    cursor: pointer;
+    box-shadow: var(--shadow-soft);
+  }
+  .primary:hover { background: var(--accent-dark); }
+
+  /* ---------- Confetti bij winst ---------- */
+  .confetti {
+    position: fixed;
+    top: -12px;
+    width: 10px;
+    height: 14px;
+    border-radius: 3px;
+    z-index: 20;
+    pointer-events: none;
+    animation: fall linear forwards;
+  }
+  @keyframes fall {
+    to { transform: translateY(105vh) rotate(720deg); opacity: 0.9; }
+  }
+
+  /* Bewegingsgevoelige spelers krijgen rust. */
+  @media (prefers-reduced-motion: reduce) {
+    .tile.reveal, .tile.filled, .confetti { animation: none; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Raad het <span class="accent">Woord</span></h1>
+    <button class="icon-button" id="open-settings" aria-label="Instellingen">⚙️</button>
+  </header>
+
+  <div class="message hint" id="message">Kies een letter om te beginnen!</div>
+
+  <div id="board" role="grid" aria-label="Speelbord"></div>
+
+  <div id="keyboard" role="group" aria-label="Toetsenbord"></div>
+
+  <button class="replay" id="replay">Nog een keer 🎲</button>
+
+  <p class="note" id="note" hidden></p>
+
+  <!-- Instellingenscherm -->
+  <div class="overlay" id="settings-overlay" role="dialog" aria-modal="true" aria-label="Instellingen">
+    <div class="panel">
+      <h2>Instellingen</h2>
+      <p class="lead">Stel het spel in voor jouw speler.</p>
+
+      <span class="field-label">Hoeveel letters?</span>
+      <div class="segment" id="length-segment">
+        <button data-length="3">3 letters</button>
+        <button data-length="4">4 letters</button>
+      </div>
+
+      <span class="field-label">Grote of kleine letters?</span>
+      <div class="segment" id="case-segment">
+        <button data-case="lower">abc</button>
+        <button data-case="upper">ABC</button>
+      </div>
+
+      <div class="switch-row">
+        <div>
+          <div class="switch-text">Makkelijke modus</div>
+          <p class="switch-help">Na elke foute gok verdwijnen een paar foute letters.</p>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="easy-toggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <span class="field-label">Welke letters mogen meedoen?</span>
+      <div class="letter-tools">
+        <button class="text-button" id="select-all">Alles aan</button>
+        <button class="text-button" id="select-none">Alles uit</button>
+      </div>
+      <div class="letter-grid" id="letter-grid"></div>
+
+      <p class="word-count" id="word-count"></p>
+
+      <div class="panel-actions">
+        <button class="primary" id="save-settings">Opslaan en spelen</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+"use strict";
+
+const ALPHABET = "abcdefghijklmnopqrstuvwxyz".split("");
+const MAX_GUESSES = 6;
+const LETTERS_REMOVED_PER_MISS = 3;   // hoeveel foute letters de makkelijke modus per keer wegstreept
+const STORAGE_KEY = "raad-het-woord-instellingen";
+
+/* ============================================================
+   Woordenlijsten
+   De woorden staan in losse JSON-bestanden (words-3.json en
+   words-4.json) zodat ze makkelijk apart bewerkt kunnen worden.
+   Onderstaande kleine lijst is enkel een vangnet: hij springt in
+   als de JSON-bestanden niet geladen kunnen worden (bijvoorbeeld
+   wanneer het spel via file:// wordt geopend in plaats van via een
+   webserver).
+   ============================================================ */
+const FALLBACK_WORDS = {
+  3: ["aap", "bal", "bos", "dak", "gek", "kat", "kip", "koe", "lam",
+      "mes", "net", "pen", "pot", "rok", "sok", "vis", "vos", "zon"],
+  4: ["beer", "boom", "boot", "deur", "eend", "hond", "huis", "kaas", "kind",
+      "klok", "maan", "muis", "neus", "roos", "tuin", "vuur", "wolk", "zand"]
+};
+
+let WORDS = { 3: [], 4: [] };
+let wordsLoadedFromFile = false;
+
+async function loadWordLists() {
+  try {
+    const [drie, vier] = await Promise.all([
+      fetchJson("words-3.json"),
+      fetchJson("words-4.json")
+    ]);
+    WORDS[3] = drie;
+    WORDS[4] = vier;
+    wordsLoadedFromFile = true;
+  } catch (error) {
+    // Geen toegang tot de bestanden: speel verder met het vangnet.
+    WORDS[3] = FALLBACK_WORDS[3];
+    WORDS[4] = FALLBACK_WORDS[4];
+    wordsLoadedFromFile = false;
+  }
+}
+
+async function fetchJson(path) {
+  const response = await fetch(path);
+  if (!response.ok) throw new Error(`Kon ${path} niet laden`);
+  return response.json();
+}
+
+/* ============================================================
+   Opslag
+   Local storage werkt zodra de pagina lokaal of op een server
+   geopend wordt. We vangen fouten af zodat het spel ook draait
+   in omgevingen waar opslag geblokkeerd is (instellingen blijven
+   dan alleen in het geheugen staan tijdens het spelen).
+   ============================================================ */
+const storage = {
+  load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+      return null;
+    }
+  },
+  save(settings) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    } catch (error) {
+      /* Geen opslag beschikbaar: niet erg, we spelen gewoon door. */
+    }
+  }
+};
+
+/* ============================================================
+   Instellingen
+   ============================================================ */
+const defaultSettings = {
+  wordLength: 3,
+  enabledLetters: [...ALPHABET],   // standaard mag alles meedoen
+  letterCase: "lower",             // "lower" of "upper"
+  easyMode: false
+};
+
+let settings = { ...defaultSettings };
+
+function loadSettings() {
+  const saved = storage.load();
+  if (!saved) return { ...defaultSettings };
+
+  // Alleen geldige waarden overnemen, voor het geval opslag beschadigd is.
+  const wordLength = saved.wordLength === 4 ? 4 : 3;
+  const enabledLetters = Array.isArray(saved.enabledLetters) && saved.enabledLetters.length
+    ? saved.enabledLetters.filter(letter => ALPHABET.includes(letter))
+    : [...ALPHABET];
+  const letterCase = saved.letterCase === "upper" ? "upper" : "lower";
+  const easyMode = saved.easyMode === true;
+
+  return { wordLength, enabledLetters, letterCase, easyMode };
+}
+
+/* Toont een letter in de gekozen stijl (klein of hoofdletter).
+   Intern blijft alles kleine letters, alleen de weergave verandert. */
+function show(letter) {
+  return settings.letterCase === "upper" ? letter.toUpperCase() : letter;
+}
+
+/* Geeft de woorden terug die passen bij de huidige instellingen:
+   juiste lengte en uitsluitend toegestane letters. */
+function getPlayableWords() {
+  const enabled = new Set(settings.enabledLetters);
+  return WORDS[settings.wordLength].filter(word =>
+    word.split("").every(letter => enabled.has(letter))
+  );
+}
+
+/* ============================================================
+   Spelstatus
+   ============================================================ */
+const game = {
+  target: "",
+  currentRow: 0,
+  currentGuess: "",
+  finished: true,
+  disabledLetters: new Set()   // door de makkelijke modus weggestreepte letters
+};
+
+/* Beste bekende status per letter, om het toetsenbord te kleuren.
+   Volgorde van "goed" naar "niet" zodat groen nooit terugvalt. */
+const letterState = {};
+const STATE_RANK = { goed: 3, bijna: 2, niet: 1 };
+
+/* ============================================================
+   DOM-verwijzingen
+   ============================================================ */
+const boardEl = document.getElementById("board");
+const keyboardEl = document.getElementById("keyboard");
+const messageEl = document.getElementById("message");
+const noteEl = document.getElementById("note");
+
+const settingsOverlay = document.getElementById("settings-overlay");
+const lengthSegment = document.getElementById("length-segment");
+const caseSegment = document.getElementById("case-segment");
+const easyToggle = document.getElementById("easy-toggle");
+const letterGrid = document.getElementById("letter-grid");
+const wordCountEl = document.getElementById("word-count");
+
+/* ============================================================
+   Spel starten
+   ============================================================ */
+function startNewGame() {
+  const words = getPlayableWords();
+
+  // Zonder bruikbare woorden vragen we de speler om meer letters aan te zetten.
+  if (words.length === 0) {
+    boardEl.innerHTML = "";
+    keyboardEl.innerHTML = "";
+    showMessage("Zet meer letters aan in de instellingen ⚙️", "lose");
+    game.finished = true;
+    return;
+  }
+
+  game.target = words[Math.floor(Math.random() * words.length)];
+  game.currentRow = 0;
+  game.currentGuess = "";
+  game.finished = false;
+  game.disabledLetters = new Set();
+  for (const key in letterState) delete letterState[key];
+
+  buildBoard();
+  buildKeyboard();
+  showMessage("Kies een letter om te beginnen!", "hint");
+}
+
+/* Bouwt een leeg bord van MAX_GUESSES rijen, elke rij even lang als het woord. */
+function buildBoard() {
+  boardEl.innerHTML = "";
+  for (let row = 0; row < MAX_GUESSES; row++) {
+    const rowEl = document.createElement("div");
+    rowEl.className = "board-row";
+    rowEl.style.gridTemplateColumns = `repeat(${game.target.length}, var(--tile))`;
+    for (let col = 0; col < game.target.length; col++) {
+      const tile = document.createElement("div");
+      tile.className = "tile";
+      tile.dataset.row = row;
+      tile.dataset.col = col;
+      rowEl.appendChild(tile);
+    }
+    boardEl.appendChild(rowEl);
+  }
+}
+
+/* Toont alleen de ingeschakelde letters, plus een wis- en een ok-toets.
+   Alfabetische volgorde is voor kinderen duidelijker dan een qwerty-indeling,
+   zeker omdat de set letters per instelling verschilt. */
+function buildKeyboard() {
+  keyboardEl.innerHTML = "";
+  const enabled = [...settings.enabledLetters].sort();
+
+  for (const letter of enabled) {
+    const key = document.createElement("button");
+    key.className = "key";
+    key.textContent = show(letter);
+    key.dataset.letter = letter;   // logica werkt altijd met kleine letters
+    key.addEventListener("click", () => addLetter(letter));
+    keyboardEl.appendChild(key);
+  }
+
+  const erase = document.createElement("button");
+  erase.className = "key action erase";
+  erase.textContent = "Wis";
+  erase.addEventListener("click", removeLetter);
+  keyboardEl.appendChild(erase);
+
+  const enter = document.createElement("button");
+  enter.className = "key action";
+  enter.textContent = "OK";
+  enter.addEventListener("click", submitGuess);
+  keyboardEl.appendChild(enter);
+}
+
+/* ============================================================
+   Invoer
+   ============================================================ */
+function addLetter(letter) {
+  if (game.finished) return;
+  if (game.disabledLetters.has(letter)) return;        // weggestreepte letter
+  if (game.currentGuess.length >= game.target.length) return;
+
+  game.currentGuess += letter;
+  const tile = tileAt(game.currentRow, game.currentGuess.length - 1);
+  tile.textContent = show(letter);
+  tile.classList.add("filled");
+}
+
+function removeLetter() {
+  if (game.finished || game.currentGuess.length === 0) return;
+
+  const tile = tileAt(game.currentRow, game.currentGuess.length - 1);
+  tile.textContent = "";
+  tile.classList.remove("filled");
+  game.currentGuess = game.currentGuess.slice(0, -1);
+}
+
+function submitGuess() {
+  if (game.finished) return;
+
+  // We controleren alleen de lengte, niet of het een bestaand woord is.
+  // Zo kan een kind vrij proberen en leren van de kleuren.
+  if (game.currentGuess.length < game.target.length) {
+    flashMessage("Maak het woord eerst af", "hint");
+    return;
+  }
+
+  const result = evaluateGuess(game.currentGuess, game.target);
+  revealRow(game.currentRow, game.currentGuess, result);
+  updateKeyboard(game.currentGuess, result);
+
+  const guessWasCorrect = result.every(state => state === "goed");
+  if (guessWasCorrect) {
+    endGame(true);
+    return;
+  }
+
+  // Makkelijke modus: na een misser een paar foute letters wegstrepen.
+  if (settings.easyMode) {
+    removeSomeWrongLetters();
+  }
+
+  game.currentRow++;
+  game.currentGuess = "";
+
+  if (game.currentRow >= MAX_GUESSES) {
+    endGame(false);
+  }
+}
+
+/* ============================================================
+   Beoordeling van een poging (Wordle-regels)
+   Twee doorgangen zodat dubbele letters correct gekleurd worden:
+   een letter krijgt alleen "bijna" als hij echt nog overblijft.
+   ============================================================ */
+function evaluateGuess(guess, target) {
+  const result = new Array(guess.length).fill("niet");
+  const remaining = {};
+
+  // Eerste doorgang: juiste plekken markeren en die letters reserveren.
+  for (let i = 0; i < guess.length; i++) {
+    if (guess[i] === target[i]) {
+      result[i] = "goed";
+    } else {
+      remaining[target[i]] = (remaining[target[i]] || 0) + 1;
+    }
+  }
+
+  // Tweede doorgang: overige letters die nog beschikbaar zijn worden "bijna".
+  for (let i = 0; i < guess.length; i++) {
+    if (result[i] === "goed") continue;
+    const letter = guess[i];
+    if (remaining[letter] > 0) {
+      result[i] = "bijna";
+      remaining[letter]--;
+    }
+  }
+
+  return result;
+}
+
+/* ============================================================
+   Makkelijke modus
+   Streept een paar nog beschikbare letters weg die zeker niet in
+   het woord zitten. Letters uit het doelwoord blijven altijd staan.
+   ============================================================ */
+function removeSomeWrongLetters() {
+  const lettersInTarget = new Set(game.target.split(""));
+
+  const safeToRemove = settings.enabledLetters.filter(letter =>
+    !lettersInTarget.has(letter) && !game.disabledLetters.has(letter)
+  );
+
+  for (const letter of pickRandom(safeToRemove, LETTERS_REMOVED_PER_MISS)) {
+    game.disabledLetters.add(letter);
+    const key = keyboardEl.querySelector(`[data-letter="${letter}"]`);
+    if (key) {
+      key.classList.add("disabled");
+      key.disabled = true;
+    }
+  }
+}
+
+// Kiest willekeurig maximaal "count" elementen uit een lijst.
+function pickRandom(items, count) {
+  const shuffled = [...items];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, count);
+}
+
+/* ============================================================
+   Weergave
+   ============================================================ */
+function revealRow(row, guess, result) {
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  for (let col = 0; col < guess.length; col++) {
+    const tile = tileAt(row, col);
+    tile.classList.remove("filled");
+    const applyColour = () => {
+      tile.classList.add(result[col]);
+    };
+
+    if (reduceMotion) {
+      applyColour();
+    } else {
+      // Elk blokje draait iets later om, voor een leuk onthul-effect.
+      tile.style.animationDelay = `${col * 0.12}s`;
+      tile.classList.add("reveal");
+      setTimeout(applyColour, col * 120 + 220);
+    }
+  }
+}
+
+function updateKeyboard(guess, result) {
+  for (let i = 0; i < guess.length; i++) {
+    const letter = guess[i];
+    const newState = result[i];
+    const current = letterState[letter];
+    // Bewaar alleen de beste status, zodat groen niet terugvalt naar oranje.
+    if (!current || STATE_RANK[newState] > STATE_RANK[current]) {
+      letterState[letter] = newState;
+    }
+  }
+
+  for (const letter in letterState) {
+    const key = keyboardEl.querySelector(`[data-letter="${letter}"]`);
+    // Een weggestreepte toets houdt zijn doorgestreepte stijl.
+    if (key && !game.disabledLetters.has(letter)) {
+      key.classList.remove("goed", "bijna", "niet");
+      key.classList.add(letterState[letter]);
+    }
+  }
+}
+
+function endGame(playerWon) {
+  game.finished = true;
+  if (playerWon) {
+    showMessage("Goed gedaan! 🎉", "win");
+    celebrate();
+  } else {
+    const woord = game.target.split("").map(show).join("");
+    showMessage(`Het woord was: ${woord}`, "lose");
+  }
+}
+
+/* ============================================================
+   Berichten
+   ============================================================ */
+function showMessage(text, type) {
+  messageEl.textContent = text;
+  messageEl.className = `message ${type}`;
+}
+
+// Toont kort een tip en zet daarna het oorspronkelijke bericht terug.
+let flashTimer = null;
+function flashMessage(text, type) {
+  const previousText = messageEl.textContent;
+  const previousType = messageEl.className.replace("message ", "");
+  showMessage(text, type);
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => {
+    if (!game.finished) showMessage(previousText, previousType);
+  }, 1200);
+}
+
+/* ============================================================
+   Confetti
+   ============================================================ */
+function celebrate() {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+  const colours = ["#6c63ff", "#5cb377", "#f3ad3d", "#ff6b6b", "#3dc5f3"];
+  for (let i = 0; i < 40; i++) {
+    const piece = document.createElement("div");
+    piece.className = "confetti";
+    piece.style.left = `${Math.random() * 100}vw`;
+    piece.style.background = colours[i % colours.length];
+    piece.style.animationDuration = `${1.6 + Math.random() * 1.2}s`;
+    piece.style.animationDelay = `${Math.random() * 0.4}s`;
+    document.body.appendChild(piece);
+    setTimeout(() => piece.remove(), 3200);
+  }
+}
+
+/* ============================================================
+   Hulpfunctie
+   ============================================================ */
+function tileAt(row, col) {
+  return boardEl.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+}
+
+/* ============================================================
+   Instellingenscherm
+   ============================================================ */
+function openSettings() {
+  // Het scherm toont steeds de actuele instellingen.
+  renderLengthSegment();
+  renderCaseSegment();
+  easyToggle.checked = settings.easyMode;
+  renderLetterGrid();
+  updateWordCount();
+  settingsOverlay.classList.add("open");
+}
+
+function closeSettings() {
+  settingsOverlay.classList.remove("open");
+}
+
+function renderLengthSegment() {
+  for (const button of lengthSegment.querySelectorAll("button")) {
+    const isSelected = Number(button.dataset.length) === settings.wordLength;
+    button.classList.toggle("selected", isSelected);
+  }
+}
+
+function renderCaseSegment() {
+  for (const button of caseSegment.querySelectorAll("button")) {
+    button.classList.toggle("selected", button.dataset.case === settings.letterCase);
+  }
+}
+
+function renderLetterGrid() {
+  letterGrid.innerHTML = "";
+  const enabled = new Set(settings.enabledLetters);
+  for (const letter of ALPHABET) {
+    const toggle = document.createElement("button");
+    toggle.className = "letter-toggle" + (enabled.has(letter) ? " on" : "");
+    toggle.textContent = show(letter);
+    toggle.dataset.letter = letter;
+    toggle.addEventListener("click", () => toggleLetter(letter));
+    letterGrid.appendChild(toggle);
+  }
+}
+
+function toggleLetter(letter) {
+  const enabled = new Set(settings.enabledLetters);
+  if (enabled.has(letter)) {
+    enabled.delete(letter);
+  } else {
+    enabled.add(letter);
+  }
+  settings.enabledLetters = [...enabled];
+  renderLetterGrid();
+  updateWordCount();
+}
+
+/* Laat zien hoeveel woorden er met de huidige keuze te spelen zijn,
+   zodat een ouder of leerkracht meteen ziet of de selectie werkt. */
+function updateWordCount() {
+  const count = getPlayableWords().length;
+  if (count === 0) {
+    wordCountEl.textContent = "Geen woorden mogelijk: zet meer letters aan.";
+    wordCountEl.className = "word-count empty";
+  } else {
+    const woordWoorden = count === 1 ? "woord" : "woorden";
+    wordCountEl.textContent = `${count} ${woordWoorden} om te raden 🎯`;
+    wordCountEl.className = "word-count";
+  }
+}
+
+/* ============================================================
+   Gebeurtenissen koppelen
+   ============================================================ */
+document.getElementById("open-settings").addEventListener("click", openSettings);
+document.getElementById("replay").addEventListener("click", startNewGame);
+
+lengthSegment.addEventListener("click", event => {
+  const button = event.target.closest("button[data-length]");
+  if (!button) return;
+  settings.wordLength = Number(button.dataset.length);
+  renderLengthSegment();
+  updateWordCount();
+});
+
+caseSegment.addEventListener("click", event => {
+  const button = event.target.closest("button[data-case]");
+  if (!button) return;
+  settings.letterCase = button.dataset.case;
+  renderCaseSegment();
+  renderLetterGrid();   // letters in het instellingenscherm tonen meteen de nieuwe stijl
+});
+
+easyToggle.addEventListener("change", () => {
+  settings.easyMode = easyToggle.checked;
+});
+
+document.getElementById("select-all").addEventListener("click", () => {
+  settings.enabledLetters = [...ALPHABET];
+  renderLetterGrid();
+  updateWordCount();
+});
+
+document.getElementById("select-none").addEventListener("click", () => {
+  settings.enabledLetters = [];
+  renderLetterGrid();
+  updateWordCount();
+});
+
+document.getElementById("save-settings").addEventListener("click", () => {
+  storage.save(settings);
+  closeSettings();
+  startNewGame();
+});
+
+// Buiten het paneel klikken sluit de instellingen zonder iets te bewaren.
+settingsOverlay.addEventListener("click", event => {
+  if (event.target === settingsOverlay) closeSettings();
+});
+
+// Een fysiek toetsenbord mag ook werken, maar alleen voor toegestane letters.
+document.addEventListener("keydown", event => {
+  if (settingsOverlay.classList.contains("open")) return;
+  const key = event.key.toLowerCase();
+  if (key === "enter") {
+    submitGuess();
+  } else if (key === "backspace") {
+    removeLetter();
+  } else if (settings.enabledLetters.includes(key)) {
+    addLetter(key);
+  }
+});
+
+/* ============================================================
+   Opstarten
+   ============================================================ */
+async function init() {
+  await loadWordLists();
+  settings = loadSettings();
+
+  if (!wordsLoadedFromFile) {
+    noteEl.hidden = false;
+    noteEl.textContent = "Tip: open dit spel via een webserver zodat de volledige woordenlijst (words-3.json en words-4.json) laadt.";
+  }
+
+  startNewGame();
+}
+
+init();
+</script>
+</body>
+</html>
