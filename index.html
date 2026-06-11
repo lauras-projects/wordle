@@ -67,6 +67,11 @@
   }
   h1 .accent { color: var(--accent); }
 
+  .header-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
   .icon-button {
     border: none;
     background: var(--surface);
@@ -77,6 +82,12 @@
     cursor: pointer;
     box-shadow: var(--shadow-soft);
     transition: transform 0.12s ease;
+  }
+  /* Compactere variant voor de "nog een keer"-knop naast de instellingen. */
+  .icon-button.small {
+    width: 40px;
+    height: 40px;
+    font-size: 1.15rem;
   }
   .icon-button:hover { transform: translateY(-2px); }
   .icon-button:active { transform: translateY(1px); }
@@ -390,6 +401,17 @@
   }
   .primary:hover { background: var(--accent-dark); }
 
+  /* Bevestigingsvenster: compacter en met twee knoppen naast elkaar. */
+  .confirm-panel { max-width: 400px; }
+  .confirm-actions {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .confirm-actions .text-button {
+    font-size: 1rem;
+    padding: 12px 18px;
+  }
+
   /* ---------- Confetti bij winst ---------- */
   .confetti {
     position: fixed;
@@ -414,7 +436,10 @@
 <body>
   <header>
     <h1>Raad het <span class="accent">Woord</span></h1>
-    <button class="icon-button" id="open-settings" aria-label="Instellingen">⚙️</button>
+    <div class="header-buttons">
+      <button class="icon-button small" id="replay" aria-label="Nog een keer" title="Nog een keer">🎲</button>
+      <button class="icon-button" id="open-settings" aria-label="Instellingen">⚙️</button>
+    </div>
   </header>
 
   <div class="message hint" id="message">Kies een letter om te beginnen!</div>
@@ -423,9 +448,19 @@
 
   <div id="keyboard" role="group" aria-label="Toetsenbord"></div>
 
-  <button class="replay" id="replay">Nog een keer 🎲</button>
-
   <p class="note" id="note" hidden></p>
+
+  <!-- Bevestiging voor opnieuw beginnen tijdens een lopend spel -->
+  <div class="overlay" id="confirm-overlay" role="dialog" aria-modal="true" aria-label="Opnieuw beginnen">
+    <div class="panel confirm-panel">
+      <h2>Opnieuw beginnen?</h2>
+      <p class="lead">Je bent nog bezig met dit spel. Weet je zeker dat je een nieuw woord wilt?</p>
+      <div class="panel-actions confirm-actions">
+        <button class="text-button" id="confirm-cancel">Nee, verder spelen</button>
+        <button class="primary" id="confirm-restart">Ja, nieuw woord</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Instellingenscherm -->
   <div class="overlay" id="settings-overlay" role="dialog" aria-modal="true" aria-label="Instellingen">
@@ -613,6 +648,7 @@ const messageEl = document.getElementById("message");
 const noteEl = document.getElementById("note");
 
 const settingsOverlay = document.getElementById("settings-overlay");
+const confirmOverlay = document.getElementById("confirm-overlay");
 const lengthSegment = document.getElementById("length-segment");
 const caseSegment = document.getElementById("case-segment");
 const easyToggle = document.getElementById("easy-toggle");
@@ -987,7 +1023,30 @@ function updateWordCount() {
    Gebeurtenissen koppelen
    ============================================================ */
 document.getElementById("open-settings").addEventListener("click", openSettings);
-document.getElementById("replay").addEventListener("click", startNewGame);
+
+/* Tijdens een lopend spel eerst om bevestiging vragen, anders meteen herstarten.
+   Zo voorkomen we dat een halve poging per ongeluk verloren gaat. */
+document.getElementById("replay").addEventListener("click", () => {
+  if (game.finished) {
+    startNewGame();
+  } else {
+    confirmOverlay.classList.add("open");
+  }
+});
+
+document.getElementById("confirm-cancel").addEventListener("click", () => {
+  confirmOverlay.classList.remove("open");
+});
+
+document.getElementById("confirm-restart").addEventListener("click", () => {
+  confirmOverlay.classList.remove("open");
+  startNewGame();
+});
+
+// Buiten het paneel klikken sluit de bevestiging zonder iets te doen.
+confirmOverlay.addEventListener("click", event => {
+  if (event.target === confirmOverlay) confirmOverlay.classList.remove("open");
+});
 
 lengthSegment.addEventListener("click", event => {
   const button = event.target.closest("button[data-length]");
